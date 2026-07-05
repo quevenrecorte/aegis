@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Aegis - Keep Vault</title>
+    <style>
+        /* Modern Dark Theme - Google Keep Inspired */
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: #202124; 
+            color: #e8eaed; 
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container { width: 100%; max-width: 600px; }
+        .card {
+            background: #2d2e31;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            margin-bottom: 20px;
+            border: 1px solid #5f6368;
+        }
+        h1, h2 { margin-top: 0; color: #f1f3f4; text-align: center;}
+        input, textarea, button {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 6px;
+            border: 1px solid #5f6368;
+            background: #202124;
+            color: white;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+        textarea { resize: vertical; height: 80px; }
+        button {
+            background: #4285f4;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        button:hover { background: #357ae8; }
+        .hidden { display: none !important; }
+        
+        /* Note Taking Component */
+        .note-creator { background: #2d2e31; border-radius: 8px; padding: 15px; }
+        
+        /* Notes Grid/List Layout */
+        .notes-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+            margin-top: 20px;
+            width: 100%;
+        }
+        .note-card {
+            background: #2d2e31;
+            border: 1px solid #5f6368;
+            border-radius: 8px;
+            padding: 15px;
+            position: relative;
+            word-break: break-word;
+        }
+        .note-title { font-weight: bold; font-size: 16px; margin-bottom: 8px; color: #fff; }
+        .note-body { font-size: 14px; color: #e8eaed; white-space: pre-wrap; }
+        .delete-btn {
+            background: #ea4335;
+            width: auto;
+            padding: 5px 10px;
+            font-size: 12px;
+            margin: 10px 0 0 0;
+            float: right;
+        }
+        .nav-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;}
+        .crypto-bar { background: #e6c400; color: #000; font-weight: bold; padding: 10px; border-radius: 6px; margin-bottom: 15px; text-align: center; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div id="auth-section" class="card">
+            <h1>Project Aegis</h1>
+            <h2>Login or Register</h2>
+            <input type="email" id="email" placeholder="Email Address">
+            <input type="password" id="password" placeholder="Account Password">
+            <button id="login-btn">Log In</button>
+            <button id="signup-btn" style="background: #34a853;">Sign Up New Account</button>
+            <p id="auth-error" style="color: #f28b82; font-size: 14px; text-align: center;"></p>
+        </div>
+
+        <div id="keep-notes-section" class="hidden" style="width: 100%;">
+            <div class="nav-header">
+                <h3>Aegis Vault: <span id="user-display" style="color:#4285f4;"></span></h3>
+                <button id="logout-btn" style="background: #ea4335; width: auto; margin: 0; padding: 8px 15px;">Log Out</button>
+            </div>
+
+            <div class="crypto-bar">
+                🔒 Vault Protection Enabled. Your Account Password serves as your local decryption key.
+            </div>
+
+            <div class="note-creator card">
+                <input type="text" id="note-title" placeholder="Title (e.g. Github Account)">
+                <textarea id="note-body" placeholder="Secure Info (e.g. User: vibe_coder / Pass: 123456)"></textarea>
+                <button id="save-note-btn" style="background: #ffbb00; color: black;">Save Secure Note</button>
+            </div>
+
+            <h2>Your Secure Notes</h2>
+            <div id="notes-grid" class="notes-grid">
+                </div>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    
+    <script>
+        // REPLACE WITH YOUR ACTUAL CONFIG
+        const firebaseConfig = {
+  apiKey: "AIzaSyAqcMzNdz68xMkaULGPR1db11hpU5T6A_A",
+  authDomain: "aegis-20c06.firebaseapp.com",
+  databaseURL: "https://aegis-20c06-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "aegis-20c06",
+  storageBucket: "aegis-20c06.firebasestorage.app",
+  messagingSenderId: "485846929460",
+  appId: "1:485846929460:web:51bc33ff08bc6173743a61",
+  measurementId: "G-QKS4R3T6BX"
+};
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // Local State Variable to store derived encryption key safely in running memory
+        let encryptionKey = null; 
+        let currentUserId = null;
+        let unsubscribeNotes = null;
+
+        // UI DOM Hooks
+        const authSection = document.getElementById('auth-section');
+        const notesSection = document.getElementById('keep-notes-section');
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
+        const loginBtn = document.getElementById('login-btn');
+        const signupBtn = document.getElementById('signup-btn');
+        const logoutBtn = document.getElementById('logout-btn');
+        const userDisplay = document.getElementById('user-display');
+        const authError = document.getElementById('auth-error');
+        const notesGrid = document.getElementById('notes-grid');
+        
+        const noteTitleInput = document.getElementById('note-title');
+        const noteBodyInput = document.getElementById('note-body');
+        const saveNoteBtn = document.getElementById('save-note-btn');
+
+        // ==========================================
+        // PHASE 2: CRYPTO UTILS (AES-GCM Web Crypto)
+        // ==========================================
+        
+        // Derives a cryptographic key using your account password
+        async function deriveKeyFromPassword(password) {
+            const encoder = new TextEncoder();
+            const passwordBytes = encoder.encode(password);
+            
+            // Fixed salt for simple client-side proof-of-concept
+            const salt = encoder.encode("AegisSalt2026Secure"); 
+            
+            const baseKey = await window.crypto.subtle.importKey(
+                "raw", passwordBytes, { name: "PBKDF2" }, false, ["deriveKey"]
+            );
+            
+            return window.crypto.subtle.deriveKey(
+                { name: "PBKDF2", salt: salt, iterations: 100000, hash: "SHA-256" },
+                baseKey,
+                { name: "AES-GCM", length: 256 },
+                false,
+                ["encrypt", "decrypt"]
+            );
+        }
+
+        // Encrypt plain text into Ciphertext
+        async function encryptText(plainText, key) {
+            if(!plainText) return "";
+            const encoder = new TextEncoder();
+            const encodedText = encoder.encode(plainText);
+            const iv = window.crypto.getRandomValues(new Uint8Array(12)); // Initialization Vector
+            
+            const encryptedBytes = await window.crypto.subtle.encrypt(
+                { name: "AES-GCM", iv: iv }, key, encodedText
+            );
+            
+            // Package up ciphertext and IV together as base64 strings
+            return JSON.stringify({
+                ciphertext: btoa(String.fromCharCode(...new Uint8Array(encryptedBytes))),
+                iv: btoa(String.fromCharCode(...iv))
+            });
+        }
+
+        // Decrypt Ciphertext back into plain text
+        async function decryptText(jsonString, key) {
+            if(!jsonString) return "";
+            try {
+                const { ciphertext, iv } = JSON.parse(jsonString);
+                const encryptedBytes = new Uint8Array(atob(ciphertext).split("").map(c => c.charCodeAt(0)));
+                const ivBytes = new Uint8Array(atob(iv).split("").map(c => c.charCodeAt(0)));
+                
+                const decryptedBuffer = await window.crypto.subtle.decrypt(
+                    { name: "AES-GCM", iv: ivBytes }, key, encryptedBytes
+                );
+                
+                return new TextDecoder().decode(decryptedBuffer);
+            } catch (e) {
+                return "[Decryption Error: Invalid Key]";
+            }
+        }
+
+        // ==========================================
+        // PHASE 3: DATABASE & USER INTERACTION
+        // ==========================================
+
+        auth.onAuthStateChanged(async (user) => {
+            if (user) {
+                currentUserId = user.uid;
+                userDisplay.textContent = user.email;
+                
+                // Securely derive key from input box input *before* removing form data
+                if (passwordInput.value) {
+                    encryptionKey = await deriveKeyFromPassword(passwordInput.value);
+                }
+                
+                authSection.classList.add('hidden');
+                notesSection.classList.remove('hidden');
+                
+                // Clear inputs for security
+                emailInput.value = "";
+                passwordInput.value = "";
+                
+                // Start listening to items in database
+                syncNotesFromFirestore();
+            } else {
+                currentUserId = null;
+                encryptionKey = null;
+                if(unsubscribeNotes) unsubscribeNotes();
+                authSection.classList.remove('hidden');
+                notesSection.classList.add('hidden');
+                notesGrid.innerHTML = "";
+            }
+        });
+
+        // Save note helper
+        saveNoteBtn.addEventListener('click', async () => {
+            const title = noteTitleInput.value.trim();
+            const body = noteBodyInput.value.trim();
+            
+            if(!title && !body) return;
+            if(!encryptionKey) { alert("Session expired. Please log in again."); return; }
+
+            // Encrypt data BEFORE it leaves your computer
+            const encryptedTitle = await encryptText(title, encryptionKey);
+            const encryptedBody = await encryptText(body, encryptionKey);
+
+            db.collection("users").doc(currentUserId).collection("notes").add({
+                title: encryptedTitle,
+                body: encryptedBody,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            }).then(() => {
+                // Reset simple Note input interface
+                noteTitleInput.value = "";
+                noteBodyInput.value = "";
+            }).catch(err => alert("Firestore Write Error: " + err.message));
+        });
+
+        // Real-time synchronization loop
+        function syncNotesFromFirestore() {
+            unsubscribeNotes = db.collection("users").doc(currentUserId).collection("notes")
+                .orderBy("timestamp", "desc")
+                .onSnapshot(async (snapshot) => {
+                    notesGrid.innerHTML = ""; // Wipe container clean
+                    
+                    for (let doc of snapshot.docs) {
+                        const data = doc.data();
+                        
+                        // Local runtime decryption
+                        const decryptedTitle = await decryptText(data.title, encryptionKey);
+                        const decryptedBody = await decryptText(data.body, encryptionKey);
+                        
+                        // Construct Google Keep card components dynamically
+                        const noteCard = document.createElement('div');
+                        noteCard.className = 'note-card';
+                        
+                        noteCard.innerHTML = `
+                            <div class="note-title">${decryptedTitle || '(No Title)'}</div>
+                            <div class="note-body">${decryptedBody || ''}</div>
+                            <button class="delete-btn" data-id="${doc.id}">Delete</button>
+                        `;
+                        
+                        // Setup individual card delete button triggers
+                        noteCard.querySelector('.delete-btn').addEventListener('click', (e) => {
+                            const docId = e.target.getAttribute('data-id');
+                            db.collection("users").doc(currentUserId).collection("notes").doc(docId).delete();
+                        });
+                        
+                        notesGrid.appendChild(noteCard);
+                    }
+                }, err => {
+                    console.log("Error fetching database docs:", err);
+                });
+        }
+
+        // Basic Trigger Authentication Blocks
+        loginBtn.addEventListener('click', () => {
+            auth.signInWithEmailAndPassword(emailInput.value, passwordInput.value)
+                .catch(err => authError.textContent = err.message);
+        });
+
+        signupBtn.addEventListener('click', () => {
+            auth.createUserWithEmailAndPassword(emailInput.value, passwordInput.value)
+                .catch(err => authError.textContent = err.message);
+        });
+
+        logoutBtn.addEventListener('click', () => {
+            auth.signOut();
+        });
+    </script>
+</body>
+</html>
