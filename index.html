@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Project Aegis - Keep Vault v1.2</title>
+    <title>Project Aegis - Keep Vault v1.3</title>
     <style>
         /* Modern Dark Theme - Google Keep Inspired */
         body { 
@@ -159,6 +159,11 @@
             <div class="folder-mobile-container card" style="padding: 15px; margin-bottom: 15px;">
                 <label style="font-size: 13px; color: #9aa0a6;">Active Folder View:</label>
                 <select id="folder-mobile-select"></select>
+                
+                <div class="inline-group" style="margin-top: 10px;">
+                    <input type="text" id="new-folder-name-mobile" placeholder="Create new folder..." style="margin: 0; padding: 8px;">
+                    <button id="add-folder-mobile-btn" style="background: #34a853; padding: 8px 12px;">➕</button>
+                </div>
             </div>
 
             <div class="workspace">
@@ -246,11 +251,15 @@
         const folderListContainer = document.getElementById('folder-list');
         const newFolderInput = document.getElementById('new-folder-name');
         const addFolderBtn = document.getElementById('add-folder-btn');
+        
+        // Mobile layout structural bindings
+        const newFolderMobileInput = document.getElementById('new-folder-name-mobile');
+        const addFolderMobileBtn = document.getElementById('add-folder-mobile-btn');
+        
         const noteFolderSelect = document.getElementById('note-folder-select');
         const folderMobileSelect = document.getElementById('folder-mobile-select');
         const folderViewTitle = document.getElementById('current-folder-view-title');
         
-        // These are the buttons that were likely missing their connections!
         const deleteFolderBtn = document.getElementById('delete-folder-btn');
         const deleteFolderMobileBtn = document.getElementById('delete-folder-mobile-btn');
 
@@ -291,6 +300,26 @@
             }
         }
 
+        // Custom Security Professionalized Error Parsing Handler (Requirement #3)
+        function handleAuthError(err) {
+            console.error("Auth Engine raw output logs:", err.code, err.message);
+            switch (err.code) {
+                case 'auth/wrong-password':
+                case 'auth/user-not-found':
+                case 'auth/invalid-email':
+                    authError.textContent = "Invalid email address or password configuration.";
+                    break;
+                case 'auth/weak-password':
+                    authError.textContent = "Security reject: Password must contain at least 6 characters.";
+                    break;
+                case 'auth/email-already-in-use':
+                    authError.textContent = "This email is already registered to a security vault.";
+                    break;
+                default:
+                    authError.textContent = "An error occurred during authentication. Please check inputs.";
+            }
+        }
+
         auth.onAuthStateChanged(async (user) => {
             if (user) {
                 currentUserId = user.uid;
@@ -312,16 +341,20 @@
             }
         });
 
-        addFolderBtn.addEventListener('click', () => {
-            const folderName = newFolderInput.value.trim();
+        // Modular creation function to avoid duplicating execution code logic paths
+        function handleFolderAddition(inputElement) {
+            const folderName = inputElement.value.trim();
             if(!folderName) return;
             if(!availableFolders.includes(folderName)) {
                 availableFolders.push(folderName);
                 activeFolderFilter = folderName; 
-                newFolderInput.value = "";
+                inputElement.value = "";
                 renderInterface();
             }
-        });
+        }
+
+        addFolderBtn.addEventListener('click', () => handleFolderAddition(newFolderInput));
+        addFolderMobileBtn.addEventListener('click', () => handleFolderAddition(newFolderMobileInput));
 
         folderMobileSelect.addEventListener('change', (e) => {
             activeFolderFilter = e.target.value;
@@ -356,7 +389,6 @@
             }).catch(err => alert("Firestore Error: " + err.message));
         });
 
-        // FIXED DELETE ROUTINE
         async function executeFolderDeletionRoutine() {
             if (activeFolderFilter === "General") {
                 alert("The 'General' folder is a system default root and cannot be removed.");
@@ -383,7 +415,6 @@
             }
         }
 
-        // THESE CONNECT THE BUTTONS TO THE FUNCTION!
         deleteFolderBtn.addEventListener('click', executeFolderDeletionRoutine);
         deleteFolderMobileBtn.addEventListener('click', executeFolderDeletionRoutine);
 
@@ -441,6 +472,9 @@
                 folderListContainer.appendChild(button);
             });
 
+            // FIXED UI SYNC CHALLENGE: Dynamically enforce current active states back onto dropdown models
+            folderMobileSelect.value = activeFolderFilter;
+
             folderViewTitle.textContent = `Folder: ${activeFolderFilter}`;
             renderNotesGrid();
         }
@@ -476,10 +510,10 @@
         }
 
         loginBtn.addEventListener('click', () => {
-            auth.signInWithEmailAndPassword(emailInput.value, passwordInput.value).catch(err => authError.textContent = err.message);
+            auth.signInWithEmailAndPassword(emailInput.value, passwordInput.value).catch(handleAuthError);
         });
         signupBtn.addEventListener('click', () => {
-            auth.createUserWithEmailAndPassword(emailInput.value, passwordInput.value).catch(err => authError.textContent = err.message);
+            auth.createUserWithEmailAndPassword(emailInput.value, passwordInput.value).catch(handleAuthError);
         });
         logoutBtn.addEventListener('click', () => { auth.signOut(); });
     </script>
