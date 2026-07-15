@@ -240,11 +240,14 @@
         </div>
 
         <div id="keep-notes-section" class="hidden" style="width: 100%;">
-            <div class="nav-header">
-                <h3>Aegis Vault: <span id="user-display" style="color:var(--btn-primary);"></span></h3>
-                <div style="display: flex; gap: 10px;">
-                    <button id="theme-toggle-btn" style="background: var(--border-color); width: auto; margin: 0; padding: 8px 15px; color: var(--text-color);">🌓 Theme</button>
-                    <button id="logout-btn" style="background: #ea4335; width: auto; margin: 0; padding: 8px 15px; color: white;">Log Out</button>
+            <div class="nav-header" style="flex-wrap: wrap; gap: 15px; align-items: center;">
+                <div style="flex: 1 1 auto; min-width: 0;">
+                    <h3 style="margin: 0; line-height: 1.2;">Aegis Vault</h3>
+                    <div id="user-display" style="color:var(--btn-primary); font-size: 14px; word-break: break-all; margin-top: 4px;"></div>
+                </div>
+                <div style="display: flex; gap: 10px; flex-shrink: 0;">
+                    <button id="theme-toggle-btn" style="background: var(--border-color); width: auto; margin: 0; padding: 8px 15px; color: var(--text-color); white-space: nowrap; display: flex; align-items: center; gap: 6px;">🌓 Theme</button>
+                    <button id="logout-btn" style="background: #ea4335; width: auto; margin: 0; padding: 8px 15px; color: white; white-space: nowrap; display: flex; align-items: center; gap: 6px;">Log Out</button>
                 </div>
             </div>
 
